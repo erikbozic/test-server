@@ -4,8 +4,10 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -41,8 +43,8 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Println("---------------")
 	}
-	log.Printf("upload request for took %s\n", time.Since(start).String())
 	fmt.Fprintf(w, "uploaded %d files, with total size %d bytes\n", nbFiles, totalSize)
+	log.Printf("upload request for took %s\n", time.Since(start).String())
 }
 
 func Download(w http.ResponseWriter, r *http.Request) {
@@ -101,4 +103,33 @@ func Headers(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(out, "%s: %s\n", headerKey, strings.Join(headerVal, ";"))
 	}
 	fmt.Fprintln(out)
+}
+
+func Service(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	requestUrl, err := url.ParseRequestURI(serviceBaseUrl + serviceCallPath)
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write([]byte(fmt.Sprintf("error parsing url: %v", err)))
+		return
+	}
+	req := http.Request{
+		Method:           http.MethodGet,
+		URL:              requestUrl,
+		Header:           nil,
+	}
+	resp, err := http.DefaultClient.Do(&req)
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write([]byte(fmt.Sprintf("error during http call: %v", err)))
+		return
+	}
+	responseBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write([]byte(fmt.Sprintf("error reading response body: %v", err)))
+		return
+	}
+	w.Write(responseBytes)
+	log.Printf("service request for took %s\n", time.Since(start).String())
 }
