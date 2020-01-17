@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	mathrand "math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,6 +18,9 @@ import (
 
 func Upload(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	defer func(){
+		log.Printf("upload request for took %s\n", time.Since(start).String())
+	}()
 	mpReader, err := r.MultipartReader()
 	if err != nil {
 		w.WriteHeader(400)
@@ -44,13 +48,15 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 		log.Println("---------------")
 	}
 	fmt.Fprintf(w, "uploaded %d files, with total size %d bytes\n", nbFiles, totalSize)
-	log.Printf("upload request for took %s\n", time.Since(start).String())
 }
 
 func Download(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	sizeParameter := r.URL.Query()["size"]
 	var contentSize int64
+	defer func(){
+		log.Printf("download request for %d bytes took %s", contentSize, time.Since(start).String())
+	}()
+	sizeParameter := r.URL.Query()["size"]
 	if len(sizeParameter) > 0 {
 		if v, err := strconv.Atoi(sizeParameter[0]); err != nil {
 			w.Write([]byte("size query parameters must be a number (bytes)"))
@@ -80,7 +86,6 @@ func Download(w http.ResponseWriter, r *http.Request) {
 		sent, _ := w.Write(buff)
 		written += int64(sent)
 	}
-	log.Printf("download request for %d bytes took %s", contentSize, time.Since(start).String())
 }
 
 func Headers(w http.ResponseWriter, r *http.Request) {
@@ -107,6 +112,9 @@ func Headers(w http.ResponseWriter, r *http.Request) {
 
 func Service(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	defer func(){
+		log.Printf("service request for took %s\n", time.Since(start).String())
+	}()
 	requestUrl, err := url.ParseRequestURI(serviceBaseUrl + serviceCallPath)
 	if err != nil {
 		w.WriteHeader(400)
@@ -116,7 +124,10 @@ func Service(w http.ResponseWriter, r *http.Request) {
 	req := http.Request{
 		Method:           http.MethodGet,
 		URL:              requestUrl,
-		Header:           nil,
+		Header:           http.Header{},
+	}
+	if v := r.URL.Query()["xb3"]; len(v) > 0 && v[0] == "true" {
+		copyXb3Headers(r, &req)
 	}
 	resp, err := http.DefaultClient.Do(&req)
 	if err != nil {
@@ -130,6 +141,31 @@ func Service(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("error reading response body: %v", err)))
 		return
 	}
+	w.WriteHeader(resp.StatusCode)
 	w.Write(responseBytes)
-	log.Printf("service request for took %s\n", time.Since(start).String())
+}
+
+func Error(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	defer func(){
+		log.Printf("error request for took %s\n", time.Since(start).String())
+	}()
+	codeParameters := r.URL.Query()["code"]
+	if len(codeParameters) == 0 {
+		w.WriteHeader(500)
+		w.Write([]byte("default status code 500"))
+		return
+	}
+	randomIndex := 0
+	if len(codeParameters)> 1 {
+		randomIndex = mathrand.Intn(len(codeParameters))
+	}
+	code, err := strconv.Atoi(codeParameters[randomIndex])
+	if err != nil || code < 100 || code > 599 {
+		w.WriteHeader(500)
+		w.Write([]byte(fmt.Sprintf("invalid status code: %d. defaulting to 500", code)))
+		return
+	}
+	w.WriteHeader(code)
+	w.Write([]byte(fmt.Sprintf("randomly returned %d code from provided codes in query string\n", code)))
 }

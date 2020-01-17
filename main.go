@@ -30,6 +30,7 @@ func main() {
 	r.HandleFunc("/download", Download).Methods(http.MethodGet)
 	r.HandleFunc("/headers", Headers).Methods(http.MethodGet)
 	r.HandleFunc("/service", Service).Methods(http.MethodGet)
+	r.HandleFunc("/error", Error).Methods(http.MethodGet)
 	log.Println("start listening on port:", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), r))
 }

@@ -34,8 +34,15 @@ Example:
 `GET /headers?print=true`  
 
 ### `/service`
-Calls another endpoint and returns its response. This is useful for testing distributed tracing scenarios.   
+Calls another endpoint and returns its response. This is useful for testing distributed tracing scenarios.  
+If you supply query parameter `?xb3=true` it will forward headers used in [opentracing](https://github.com/openzipkin/b3-propagation).  
 When starting the server supply the `serviceBaseUrl` and `serviceCallPath` to control what gets called.  
 Example:  
 Start `./test-server -port 8888 -serviceBaseUrl=http://localhost:9999 -serviceCallPath=/service`(S1) and `./test-server -port 9999 -serviceBaseUrl=http://localhost:8888 -serviceCallPath=/headers?print=true`(S2).  
 Then calling `GET /service` on S1 will call `GET /service` on S2, which will call `GET /headers` on S1 again.
+
+### `/error`
+Randomly returns one of the codes provided by the `code` query parameter. (or 500 by default)   
+Example:  
+`GET /error?code=500&code=404&code=422` will randomly return one of 500, 404 or 422.  
+`GET /error` default always returns 500  
